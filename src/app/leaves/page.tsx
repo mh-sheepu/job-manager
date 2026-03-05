@@ -2,8 +2,24 @@
 
 import { useEffect, useState } from "react";
 import ProtectedLayout from "@/components/ProtectedLayout";
-import { Calendar, Plus, Trash2, X } from "lucide-react";
+import { Calendar, Plus, Trash2, X, Paperclip, Eye } from "lucide-react";
 import { format } from "date-fns";
+import FileUpload from "@/components/FileUpload";
+
+interface Attachment {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  createdAt: string;
+  uploader: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+}
 
 interface Leave {
   id: string;
@@ -13,6 +29,7 @@ interface Leave {
   reason: string;
   status: string;
   createdAt: string;
+  attachments?: Attachment[];
 }
 
 interface LeaveBalance {
@@ -29,6 +46,8 @@ export default function LeavesPage() {
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [selectedLeave, setSelectedLeave] = useState<Leave | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [formData, setFormData] = useState({
     startDate: "",
     endDate: "",
@@ -52,6 +71,58 @@ export default function LeavesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAttachments = async (leaveId: string) => {
+    try {
+      const response = await fetch(`/api/attachments?leaveId=${leaveId}`);
+      const data = await response.json();
+      setAttachments(data);
+    } catch (error) {
+      console.error("Error fetching attachments:", error);
+    }
+  };
+
+  const handleUploadAttachment = async (file: File) => {
+    if (!selectedLeave) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("leaveId", selectedLeave.id);
+
+    const response = await fetch("/api/attachments", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Upload failed");
+    }
+
+    await fetchAttachments(selectedLeave.id);
+    fetchLeaves();
+  };
+
+  const handleDeleteAttachment = async (id: string) => {
+    const response = await fetch(`/api/attachments?id=${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Delete failed");
+    }
+
+    if (selectedLeave) {
+      await fetchAttachments(selectedLeave.id);
+      fetchLeaves();
+    }
+  };
+
+  const openLeaveDetails = async (leave: Leave) => {
+    setSelectedLeave(leave);
+    await fetchAttachments(leave.id);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,6 +302,9 @@ export default function LeavesPage() {
                       Reason
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Attachments
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -258,6 +332,16 @@ export default function LeavesPage() {
                         {leave.reason}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        {leave.attachments && leave.attachments.length > 0 ? (
+                          <span className="flex items-center gap-1 text-sm text-indigo-600">
+                            <Paperclip size={14} />
+                            {leave.attachments.length}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
                             leave.status
@@ -267,12 +351,22 @@ export default function LeavesPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => handleDelete(leave.id)}
-                          className="text-red-500 hover:text-red-700 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openLeaveDetails(leave)}
+                            className="text-indigo-500 hover:text-indigo-700 transition-colors"
+                            title="View details & attachments"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(leave.id)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -381,6 +475,101 @@ export default function LeavesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Leave Details Modal */}
+        {selectedLeave && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Leave Details
+                </h3>
+                <button
+                  onClick={() => {
+                    setSelectedLeave(null);
+                    setAttachments([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Leave Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Type</p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${getTypeColor(
+                        selectedLeave.type
+                      )}`}
+                    >
+                      {selectedLeave.type}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${getStatusColor(
+                        selectedLeave.status
+                      )}`}
+                    >
+                      {selectedLeave.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Start Date</p>
+                    <p className="mt-1 text-gray-900">
+                      {format(new Date(selectedLeave.startDate), "MMM d, yyyy")}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">End Date</p>
+                    <p className="mt-1 text-gray-900">
+                      {format(new Date(selectedLeave.endDate), "MMM d, yyyy")}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Reason</p>
+                  <p className="mt-1 text-gray-900">{selectedLeave.reason}</p>
+                </div>
+
+                {/* Attachments */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    Attachments (Medical certificates, documents, etc.)
+                  </p>
+                  <FileUpload
+                    attachments={attachments}
+                    onUpload={handleUploadAttachment}
+                    onDelete={handleDeleteAttachment}
+                    disabled={selectedLeave.status !== "PENDING"}
+                  />
+                  {selectedLeave.status !== "PENDING" && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      * Attachments can only be modified for pending leave requests
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <button
+                    onClick={() => {
+                      setSelectedLeave(null);
+                      setAttachments([]);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

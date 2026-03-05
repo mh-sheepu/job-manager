@@ -15,8 +15,26 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Paperclip,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
+import FileUpload from "@/components/FileUpload";
+
+interface Attachment {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  createdAt: string;
+  uploader: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+}
 
 interface Task {
   id: string;
@@ -25,6 +43,7 @@ interface Task {
   status: string;
   priority: string;
   dueDate: string | null;
+  attachments?: Attachment[];
 }
 
 interface Section {
@@ -67,6 +86,8 @@ export default function WorksPage() {
     null
   );
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [taskAttachments, setTaskAttachments] = useState<Attachment[]>([]);
 
   // Form data
   const [projectForm, setProjectForm] = useState({
@@ -293,6 +314,59 @@ export default function WorksPage() {
       fetchProjects();
     } catch (error) {
       console.error("Error deleting task:", error);
+    }
+  };
+
+  // Task Attachments
+  const fetchTaskAttachments = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/attachments?taskId=${taskId}`);
+      const data = await response.json();
+      setTaskAttachments(data);
+    } catch (error) {
+      console.error("Error fetching attachments:", error);
+    }
+  };
+
+  const openTaskDetails = async (task: Task) => {
+    setViewingTask(task);
+    await fetchTaskAttachments(task.id);
+  };
+
+  const handleUploadTaskAttachment = async (file: File) => {
+    if (!viewingTask) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("taskId", viewingTask.id);
+
+    const response = await fetch("/api/attachments", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Upload failed");
+    }
+
+    await fetchTaskAttachments(viewingTask.id);
+    fetchProjects();
+  };
+
+  const handleDeleteTaskAttachment = async (id: string) => {
+    const response = await fetch(`/api/attachments?id=${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Delete failed");
+    }
+
+    if (viewingTask) {
+      await fetchTaskAttachments(viewingTask.id);
+      fetchProjects();
     }
   };
 
@@ -559,6 +633,13 @@ export default function WorksPage() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2">
+                                        {task.attachments &&
+                                          task.attachments.length > 0 && (
+                                            <span className="flex items-center gap-0.5 text-xs text-indigo-600">
+                                              <Paperclip size={12} />
+                                              {task.attachments.length}
+                                            </span>
+                                          )}
                                         <span
                                           className={`px-2 py-0.5 text-xs rounded ${getPriorityColor(
                                             task.priority
@@ -585,16 +666,25 @@ export default function WorksPage() {
                                           <option value="DONE">Done</option>
                                         </select>
                                         <button
+                                          onClick={() => openTaskDetails(task)}
+                                          className="text-gray-400 hover:text-indigo-600"
+                                          title="View details & attachments"
+                                        >
+                                          <Eye size={14} />
+                                        </button>
+                                        <button
                                           onClick={() =>
                                             openTaskModal(section.id, task)
                                           }
                                           className="text-gray-400 hover:text-indigo-600"
+                                          title="Edit task"
                                         >
                                           <Edit2 size={14} />
                                         </button>
                                         <button
                                           onClick={() => deleteTask(task.id)}
                                           className="text-gray-400 hover:text-red-600"
+                                          title="Delete task"
                                         >
                                           <Trash2 size={14} />
                                         </button>
@@ -940,6 +1030,96 @@ export default function WorksPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Task Details Modal */}
+        {viewingTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Task Details
+                </h3>
+                <button
+                  onClick={() => {
+                    setViewingTask(null);
+                    setTaskAttachments([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Task Info */}
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900">
+                    {viewingTask.title}
+                  </h4>
+                  {viewingTask.description && (
+                    <p className="mt-1 text-sm text-gray-600">
+                      {viewingTask.description}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Status</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      {getStatusIcon(viewingTask.status)}
+                      <span className="text-sm text-gray-900">
+                        {viewingTask.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Priority</p>
+                    <span
+                      className={`inline-block mt-1 px-2 py-1 text-xs rounded ${getPriorityColor(
+                        viewingTask.priority
+                      )}`}
+                    >
+                      {viewingTask.priority}
+                    </span>
+                  </div>
+                  {viewingTask.dueDate && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-500">Due Date</p>
+                      <p className="mt-1 text-gray-900">
+                        {format(new Date(viewingTask.dueDate), "MMMM d, yyyy")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Attachments */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    Attachments
+                  </p>
+                  <FileUpload
+                    attachments={taskAttachments}
+                    onUpload={handleUploadTaskAttachment}
+                    onDelete={handleDeleteTaskAttachment}
+                  />
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <button
+                    onClick={() => {
+                      setViewingTask(null);
+                      setTaskAttachments([]);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -102,6 +102,7 @@ model User {
   projects       Project[]
   assignedTasks  Task[]    @relation("AssignedTasks")
   createdTasks   Task[]    @relation("CreatedTasks")
+  attachments    Attachment[]
 }
 
 model LeaveBalance {
@@ -129,7 +130,8 @@ model Leave {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
 }
 
 model Absent {
@@ -188,4 +190,26 @@ model Task {
   section     Section   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   assignee    User?     @relation("AssignedTasks", fields: [assignedTo], references: [id])
   creator     User      @relation("CreatedTasks", fields: [createdBy], references: [id])
+  attachments Attachment[]
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  url         String
+  path        String   // Storage path in Supabase
+  uploadedBy  String
+  leaveId     String?
+  taskId      String?
+  createdAt   DateTime @default(now())
+  
+  leave       Leave?   @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader    User     @relation(fields: [uploadedBy], references: [id])
+  
+  @@index([leaveId])
+  @@index([taskId])
 }

@@ -32,6 +32,19 @@ export async function GET() {
     const leaves = await prisma.leave.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      include: {
+        attachments: {
+          select: {
+            id: true,
+            filename: true,
+            originalName: true,
+            mimeType: true,
+            size: true,
+            url: true,
+            createdAt: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({ leaveBalance, leaves });

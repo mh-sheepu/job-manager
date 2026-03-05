@@ -19,6 +19,19 @@ export async function GET() {
           include: {
             tasks: {
               orderBy: { createdAt: "desc" },
+              include: {
+                attachments: {
+                  select: {
+                    id: true,
+                    filename: true,
+                    originalName: true,
+                    mimeType: true,
+                    size: true,
+                    url: true,
+                    createdAt: true,
+                  },
+                },
+              },
             },
           },
           orderBy: { order: "asc" },
