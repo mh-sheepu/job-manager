@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
           section: {
             project: { userId }
           },
-          status: { not: 'COMPLETED' },
+          status: { not: 'DONE' },
           dueDate: { lte: threeDaysFromNow }
         },
         include: {
