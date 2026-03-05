@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import ProtectedLayout from "@/components/ProtectedLayout";
-import { Calendar, Plus, Trash2, X, Paperclip, Eye } from "lucide-react";
+import { Calendar, Plus, Trash2, X, Paperclip, Eye, Upload } from "lucide-react";
 import { format } from "date-fns";
 import FileUpload from "@/components/FileUpload";
 
@@ -48,6 +48,8 @@ export default function LeavesPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<Leave | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     startDate: "",
     endDate: "",
@@ -137,6 +139,21 @@ export default function LeavesPage() {
       });
 
       if (response.ok) {
+        const newLeave = await response.json();
+        
+        // Upload pending files if any
+        if (pendingFiles.length > 0) {
+          for (const file of pendingFiles) {
+            const uploadData = new FormData();
+            uploadData.append("file", file);
+            uploadData.append("leaveId", newLeave.id);
+            await fetch("/api/attachments", {
+              method: "POST",
+              body: uploadData,
+            });
+          }
+        }
+        
         setShowModal(false);
         setFormData({
           startDate: "",
@@ -144,6 +161,7 @@ export default function LeavesPage() {
           type: "ANNUAL",
           reason: "",
         });
+        setPendingFiles([]);
         fetchLeaves();
       }
     } catch (error) {
@@ -151,6 +169,28 @@ export default function LeavesPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setPendingFiles((prev) => [...prev, ...newFiles].slice(0, 5)); // Max 5 files
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
   const handleDelete = async (id: string) => {
@@ -385,7 +425,10 @@ export default function LeavesPage() {
                   Request Leave
                 </h3>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setPendingFiles([]);
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X size={24} />
@@ -458,10 +501,61 @@ export default function LeavesPage() {
                   />
                 </div>
 
+                {/* Attachments (Optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Attachments <span className="text-gray-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    multiple
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                  >
+                    <Upload size={18} />
+                    <span>Add medical certificate or documents</span>
+                  </button>
+                  {pendingFiles.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {pendingFiles.map((file, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Paperclip size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate text-gray-700">{file.name}</span>
+                            <span className="text-gray-400 text-xs flex-shrink-0">
+                              ({formatFileSize(file.size)})
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePendingFile(index)}
+                            className="text-gray-400 hover:text-red-500 p-1"
+                          >
+                            <X size={16} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => {
+                      setShowModal(false);
+                      setPendingFiles([]);
+                    }}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Cancel
