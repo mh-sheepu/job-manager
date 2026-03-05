@@ -12,6 +12,10 @@ import {
   Menu,
   X,
   User,
+  CalendarDays,
+  BarChart3,
+  Bell,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -20,6 +24,10 @@ const navItems = [
   { href: "/leaves", label: "Leave Management", icon: Calendar },
   { href: "/absents", label: "Absent Days", icon: CalendarX },
   { href: "/works", label: "Works / Projects", icon: FolderKanban },
+  { href: "/calendar", label: "Calendar View", icon: CalendarDays },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/profile", label: "Profile & Settings", icon: Settings },
 ];
 
 export default function Sidebar() {

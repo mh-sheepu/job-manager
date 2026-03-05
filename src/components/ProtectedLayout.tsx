@@ -4,6 +4,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, ReactNode, useState } from "react";
 import Sidebar from "./Sidebar";
+import SearchBar from "./SearchBar";
+import NotificationBell from "./NotificationBell";
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
@@ -36,7 +38,12 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-gray-100">
       <Sidebar />
       <main className="lg:ml-64 min-h-screen">
-        <div className="p-4 lg:p-8 pt-16 lg:pt-8">{children}</div>
+        {/* Top Header Bar */}
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-end gap-3 px-4 lg:px-8 sticky top-0 z-30">
+          <SearchBar />
+          <NotificationBell />
+        </header>
+        <div className="p-4 lg:p-8">{children}</div>
       </main>
     </div>
   );
