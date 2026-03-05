@@ -50,17 +50,22 @@ export async function GET(request: NextRequest) {
 // POST - Upload attachment
 export async function POST(request: NextRequest) {
   try {
+    console.log('Step 1: Starting upload...')
+    
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = session.user as SessionUser
+    console.log('Step 2: User authenticated:', user.id)
 
     const formData = await request.formData()
     const file = formData.get('file') as File
     const leaveId = formData.get('leaveId') as string | null
     const taskId = formData.get('taskId') as string | null
+    
+    console.log('Step 3: Form data received:', { fileName: file?.name, leaveId, taskId })
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -91,8 +96,10 @@ export async function POST(request: NextRequest) {
     ]
 
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'File type not allowed' }, { status: 400 })
+      return NextResponse.json({ error: `File type not allowed: ${file.type}` }, { status: 400 })
     }
+
+    console.log('Step 4: File validation passed')
 
     // Generate unique filename
     const timestamp = Date.now()
@@ -100,12 +107,17 @@ export async function POST(request: NextRequest) {
     const filename = `${timestamp}-${sanitizedName}`
     const folder = leaveId ? 'leaves' : 'tasks'
     const path = `${folder}/${user.id}/${filename}`
+    
+    console.log('Step 5: Generated path:', path)
 
     // Convert File to ArrayBuffer for upload
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    
+    console.log('Step 6: Buffer created, size:', buffer.length)
 
     // Upload to Supabase Storage
+    console.log('Step 7: Uploading to Supabase...')
     const { data: uploadData, error: uploadError } = await getSupabase().storage
       .from(ATTACHMENTS_BUCKET)
       .upload(path, buffer, {
@@ -118,13 +130,18 @@ export async function POST(request: NextRequest) {
       console.error('Upload error:', uploadError)
       return NextResponse.json({ error: `Failed to upload file: ${uploadError.message}` }, { status: 500 })
     }
+    
+    console.log('Step 8: Upload successful:', uploadData.path)
 
     // Get public URL
     const { data: urlData } = getSupabase().storage
       .from(ATTACHMENTS_BUCKET)
       .getPublicUrl(uploadData.path)
+      
+    console.log('Step 9: Public URL:', urlData.publicUrl)
 
     // Save to database
+    console.log('Step 10: Saving to database...')
     const attachment = await prisma.attachment.create({
       data: {
         filename,
@@ -143,6 +160,8 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+    
+    console.log('Step 11: Database save successful:', attachment.id)
 
     return NextResponse.json(attachment)
   } catch (error) {
