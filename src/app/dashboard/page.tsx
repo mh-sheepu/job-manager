@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import {
   Calendar,
@@ -11,6 +10,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useDashboard } from "@/lib/hooks";
 
 interface DashboardData {
   leaveBalance: {
@@ -40,26 +40,9 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading } = useDashboard();
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  const fetchDashboard = async () => {
-    try {
-      const response = await fetch("/api/dashboard");
-      const result = await response.json();
-      setData(result);
-    } catch (error) {
-      console.error("Error fetching dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <ProtectedLayout>
         <div className="flex items-center justify-center h-64">

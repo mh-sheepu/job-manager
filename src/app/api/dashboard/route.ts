@@ -117,6 +117,10 @@ export async function GET() {
       },
       recentLeaves,
       recentAbsents,
+    }, {
+      headers: {
+        'Cache-Control': 'private, s-maxage=10, stale-while-revalidate=30',
+      }
     });
   } catch (error) {
     console.error("Error fetching dashboard:", error);

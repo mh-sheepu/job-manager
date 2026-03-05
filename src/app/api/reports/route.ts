@@ -122,7 +122,11 @@ export async function GET(request: Request) {
       },
     };
 
-    return NextResponse.json(reportData);
+    return NextResponse.json(reportData, {
+      headers: {
+        'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',
+      }
+    });
   } catch (error) {
     console.error("Error fetching report:", error);
     return NextResponse.json({ error: "Failed to fetch report" }, { status: 500 });

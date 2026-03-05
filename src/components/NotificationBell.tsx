@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Clock, X, AlertTriangle, Calendar, FileText } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useNotifications } from '@/lib/hooks';
 
 interface Notification {
   id: string;
@@ -15,18 +16,11 @@ interface Notification {
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetchNotifications();
-    
-    // Refresh notifications every 5 minutes (reduce API calls)
-    const interval = setInterval(fetchNotifications, 300000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data, isLoading } = useNotifications();
+  
+  const notifications = data?.notifications || [];
+  const unreadCount = data?.unreadCount || 0;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -38,21 +32,6 @@ export default function NotificationBell() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetch('/api/notifications');
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications);
-        setUnreadCount(data.unreadCount);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -118,7 +97,7 @@ export default function NotificationBell() {
           </div>
 
           <div className="overflow-y-auto max-h-72">
-            {loading ? (
+            {isLoading ? (
               <div className="p-4 text-center text-gray-500">
                 Loading...
               </div>

@@ -135,6 +135,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       notifications: notifications.slice(0, 20),
       unreadCount: notifications.length
+    }, {
+      headers: {
+        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=120',
+      }
     });
 
   } catch (error) {
