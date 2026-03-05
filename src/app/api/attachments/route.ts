@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(attachments)
   } catch (error) {
     console.error('Error fetching attachments:', error)
-    return NextResponse.json({ error: 'Failed to fetch attachments' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Failed to fetch attachments: ${errorMessage}` }, { status: 500 })
   }
 }
 
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Upload error:', uploadError)
-      return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
+      return NextResponse.json({ error: `Failed to upload file: ${uploadError.message}` }, { status: 500 })
     }
 
     // Get public URL
@@ -146,7 +147,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(attachment)
   } catch (error) {
     console.error('Error uploading attachment:', error)
-    return NextResponse.json({ error: 'Failed to upload attachment' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Failed to upload attachment: ${errorMessage}` }, { status: 500 })
   }
 }
 

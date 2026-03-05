@@ -79,9 +79,11 @@ export default function LeavesPage() {
     try {
       const response = await fetch(`/api/attachments?leaveId=${leaveId}`);
       const data = await response.json();
-      setAttachments(data);
+      console.log("Fetched attachments:", data);
+      setAttachments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching attachments:", error);
+      setAttachments([]);
     }
   };
 
@@ -92,18 +94,28 @@ export default function LeavesPage() {
     formData.append("file", file);
     formData.append("leaveId", selectedLeave.id);
 
-    const response = await fetch("/api/attachments", {
-      method: "POST",
-      body: formData,
-    });
+    try {
+      const response = await fetch("/api/attachments", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Upload failed");
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Upload error:", error);
+        alert(`Upload failed: ${error.error || "Unknown error"}`);
+        throw new Error(error.error || "Upload failed");
+      }
+
+      const result = await response.json();
+      console.log("Upload success:", result);
+      
+      await fetchAttachments(selectedLeave.id);
+      fetchLeaves();
+    } catch (err) {
+      console.error("Upload exception:", err);
+      throw err;
     }
-
-    await fetchAttachments(selectedLeave.id);
-    fetchLeaves();
   };
 
   const handleDeleteAttachment = async (id: string) => {
