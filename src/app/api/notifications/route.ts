@@ -14,61 +14,60 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id;
     const sevenDaysAgo = subDays(new Date(), 7);
-
-    // Get recent leaves (approved/rejected in last 7 days)
-    const recentLeaves = await prisma.leave.findMany({
-      where: {
-        userId,
-        updatedAt: { gte: sevenDaysAgo },
-        status: { in: ['APPROVED', 'REJECTED'] }
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 10
-    });
-
-    // Get leaves starting soon (within 3 days)
     const threeDaysFromNow = new Date();
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-    
-    const upcomingLeaves = await prisma.leave.findMany({
-      where: {
-        userId,
-        status: 'APPROVED',
-        startDate: {
-          gte: new Date(),
-          lte: threeDaysFromNow
-        }
-      },
-      orderBy: { startDate: 'asc' }
-    });
 
-    // Get tasks due soon or overdue
-    const tasks = await prisma.task.findMany({
-      where: {
-        section: {
-          project: { userId }
+    // Run all queries in parallel for better performance
+    const [recentLeaves, upcomingLeaves, tasks, recentAbsents] = await Promise.all([
+      // Get recent leaves (approved/rejected in last 7 days)
+      prisma.leave.findMany({
+        where: {
+          userId,
+          updatedAt: { gte: sevenDaysAgo },
+          status: { in: ['APPROVED', 'REJECTED'] }
         },
-        status: { not: 'COMPLETED' },
-        dueDate: { lte: threeDaysFromNow }
-      },
-      include: {
-        section: {
-          include: { project: true }
-        }
-      },
-      orderBy: { dueDate: 'asc' },
-      take: 10
-    });
-
-    // Get recent absents entered
-    const recentAbsents = await prisma.absent.findMany({
-      where: {
-        userId,
-        createdAt: { gte: subDays(new Date(), 3) }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5
-    });
+        orderBy: { updatedAt: 'desc' },
+        take: 10
+      }),
+      // Get leaves starting soon (within 3 days)
+      prisma.leave.findMany({
+        where: {
+          userId,
+          status: 'APPROVED',
+          startDate: {
+            gte: new Date(),
+            lte: threeDaysFromNow
+          }
+        },
+        orderBy: { startDate: 'asc' }
+      }),
+      // Get tasks due soon or overdue
+      prisma.task.findMany({
+        where: {
+          section: {
+            project: { userId }
+          },
+          status: { not: 'COMPLETED' },
+          dueDate: { lte: threeDaysFromNow }
+        },
+        include: {
+          section: {
+            include: { project: true }
+          }
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 10
+      }),
+      // Get recent absents entered
+      prisma.absent.findMany({
+        where: {
+          userId,
+          createdAt: { gte: subDays(new Date(), 3) }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      })
+    ]);
 
     // Build notifications array
     const notifications: Array<{

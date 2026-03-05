@@ -23,8 +23,8 @@ export default function NotificationBell() {
   useEffect(() => {
     fetchNotifications();
     
-    // Refresh notifications every 60 seconds
-    const interval = setInterval(fetchNotifications, 60000);
+    // Refresh notifications every 5 minutes (reduce API calls)
+    const interval = setInterval(fetchNotifications, 300000);
     return () => clearInterval(interval);
   }, []);
 

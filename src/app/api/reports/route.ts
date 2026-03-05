@@ -32,26 +32,34 @@ export async function GET(request: Request) {
         break;
     }
 
-    // Fetch leaves
-    const leaves = await prisma.leave.findMany({
-      where: {
-        userId,
-        createdAt: { gte: startDate },
-      },
-    });
+    // Fetch all data in parallel for better performance
+    const [leaves, absents, projects] = await Promise.all([
+      prisma.leave.findMany({
+        where: {
+          userId,
+          createdAt: { gte: startDate },
+        },
+      }),
+      prisma.absent.findMany({
+        where: {
+          userId,
+          date: { gte: startDate },
+        },
+      }),
+      prisma.project.findMany({
+        where: { userId },
+        include: {
+          sections: {
+            include: { tasks: true },
+          },
+        },
+      })
+    ]);
 
     const leaveByType = leaves.reduce((acc: any, leave) => {
       acc[leave.type] = (acc[leave.type] || 0) + 1;
       return acc;
     }, {});
-
-    // Fetch absents
-    const absents = await prisma.absent.findMany({
-      where: {
-        userId,
-        date: { gte: startDate },
-      },
-    });
 
     // Calculate absent by month
     const absentByMonth: Record<string, number> = {};
@@ -67,16 +75,6 @@ export async function GET(request: Request) {
       if (absentByMonth[month] !== undefined) {
         absentByMonth[month]++;
       }
-    });
-
-    // Fetch projects
-    const projects = await prisma.project.findMany({
-      where: { userId },
-      include: {
-        sections: {
-          include: { tasks: true },
-        },
-      },
     });
 
     // Calculate task stats
