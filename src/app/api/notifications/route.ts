@@ -81,11 +81,13 @@ export async function GET(request: NextRequest) {
 
     // Add leave status notifications
     recentLeaves.forEach(leave => {
+      const startDate = new Date(leave.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endDate = new Date(leave.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       notifications.push({
         id: `leave-${leave.id}`,
         type: leave.status === 'APPROVED' ? 'leave_approved' : 'leave_rejected',
-        title: leave.status === 'APPROVED' ? 'Leave Approved' : 'Leave Rejected',
-        message: `Your ${leave.type.toLowerCase()} leave request has been ${leave.status.toLowerCase()}`,
+        title: leave.status === 'APPROVED' ? 'Leave Approved ✓' : 'Leave Rejected',
+        message: `Your ${leave.type.toLowerCase()} leave (${startDate} - ${endDate}) has been ${leave.status.toLowerCase()}`,
         timestamp: leave.updatedAt,
         read: false
       });
@@ -111,7 +113,7 @@ export async function GET(request: NextRequest) {
         id: `task-${task.id}`,
         type: isOverdue ? 'task_overdue' : 'task_due',
         title: isOverdue ? 'Task Overdue' : 'Task Due Soon',
-        message: `"${task.name}" in ${task.section.project.name} is ${isOverdue ? 'overdue' : 'due soon'}`,
+        message: `"${task.title}" in ${task.section.project.name} is ${isOverdue ? 'overdue' : 'due soon'}`,
         timestamp: task.dueDate || new Date(),
         read: false
       });
@@ -119,11 +121,12 @@ export async function GET(request: NextRequest) {
 
     // Add recent absent notifications
     recentAbsents.forEach(absent => {
+      const absentDate = new Date(absent.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       notifications.push({
         id: `absent-${absent.id}`,
         type: 'absent_added',
         title: 'Absence Recorded',
-        message: `Absence on ${absent.date.toLocaleDateString()} has been recorded`,
+        message: `Absence on ${absentDate} has been recorded`,
         timestamp: absent.createdAt,
         read: false
       });
