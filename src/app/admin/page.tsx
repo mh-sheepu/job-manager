@@ -8,14 +8,18 @@ import {
   Users,
   Clock,
   CheckCircle2,
-  XCircle,
   Calendar,
   AlertTriangle,
   Search,
-  Filter,
-  Eye,
   UserCheck,
   UserX,
+  Settings,
+  X,
+  Save,
+  Edit2,
+  Building,
+  CalendarDays,
+  FolderKanban,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -51,6 +55,25 @@ interface DashboardStats {
   totalAbsentsMonth: number;
 }
 
+interface LeaveBalance {
+  id: string;
+  totalLeaves: number;
+  usedLeaves: number;
+  sickLeaves: number;
+  usedSick: number;
+  casualLeaves: number;
+  usedCasual: number;
+  year: number;
+}
+
+interface UserDetail {
+  user: User;
+  leaveBalance: LeaveBalance;
+  leaves: any[];
+  absents: any[];
+  projectCount: number;
+}
+
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -63,6 +86,34 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [allLeaves, setAllLeaves] = useState<LeaveRequest[]>([]);
+  
+  // Modal states
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<UserDetail | null>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
+  
+  // Settings state
+  const [globalSettings, setGlobalSettings] = useState({
+    defaultAnnualLeaves: 20,
+    defaultSickLeaves: 10,
+    defaultCasualLeaves: 10,
+  });
+  const [applyToAll, setApplyToAll] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  
+  // User edit state
+  const [editingUser, setEditingUser] = useState(false);
+  const [userEditData, setUserEditData] = useState({
+    role: "",
+    department: "",
+    totalLeaves: 0,
+    sickLeaves: 0,
+    casualLeaves: 0,
+  });
+  const [savingUser, setSavingUser] = useState(false);
+
+  const isAdmin = (session?.user as any)?.role === "admin";
 
   useEffect(() => {
     if (status === "loading") return;
@@ -101,6 +152,82 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error("Error fetching all leaves:", error);
+    }
+  };
+
+  const fetchUserDetail = async (userId: string) => {
+    setLoadingUser(true);
+    setShowUserModal(true);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUserDetail(data);
+        setUserEditData({
+          role: data.user.role,
+          department: data.user.department || "",
+          totalLeaves: data.leaveBalance.totalLeaves,
+          sickLeaves: data.leaveBalance.sickLeaves,
+          casualLeaves: data.leaveBalance.casualLeaves,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching user detail:", error);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
+
+  const saveGlobalSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...globalSettings,
+          applyToAll,
+        }),
+      });
+      if (response.ok) {
+        setShowSettingsModal(false);
+        if (applyToAll) {
+          fetchDashboardData();
+        }
+      }
+    } catch (error) {
+      console.error("Error saving settings:", error);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const saveUserChanges = async () => {
+    if (!selectedUserDetail) return;
+    setSavingUser(true);
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUserDetail.user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: userEditData.role,
+          department: userEditData.department,
+          leaveBalance: {
+            totalLeaves: userEditData.totalLeaves,
+            sickLeaves: userEditData.sickLeaves,
+            casualLeaves: userEditData.casualLeaves,
+          },
+        }),
+      });
+      if (response.ok) {
+        setEditingUser(false);
+        fetchUserDetail(selectedUserDetail.user.id);
+        fetchDashboardData();
+      }
+    } catch (error) {
+      console.error("Error saving user:", error);
+    } finally {
+      setSavingUser(false);
     }
   };
 
@@ -169,7 +296,16 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
             <p className="text-gray-500">Manage employees and leave requests</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              >
+                <Settings size={18} />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+            )}
             <span className="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-700 rounded-full">
               {(session?.user as any)?.role?.toUpperCase()}
             </span>
@@ -319,11 +455,16 @@ export default function AdminDashboard() {
                       <th className="pb-3 font-medium">Role</th>
                       <th className="pb-3 font-medium">Department</th>
                       <th className="pb-3 font-medium">Joined</th>
+                      <th className="pb-3 font-medium">View</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={user.id} 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => fetchUserDetail(user.id)}
+                      >
                         <td className="py-3">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -353,6 +494,17 @@ export default function AdminDashboard() {
                         <td className="py-3 text-gray-600">{user.department || "-"}</td>
                         <td className="py-3 text-gray-500 text-sm">
                           {format(new Date(user.createdAt), "MMM d, yyyy")}
+                        </td>
+                        <td className="py-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              fetchUserDetail(user.id);
+                            }}
+                            className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 text-xs"
+                          >
+                            View
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -475,6 +627,324 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Global Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Global Leave Settings</h2>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Annual Leave
+                </label>
+                <input
+                  type="number"
+                  value={globalSettings.defaultAnnualLeaves}
+                  onChange={(e) =>
+                    setGlobalSettings({ ...globalSettings, defaultAnnualLeaves: parseInt(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Sick Leave
+                </label>
+                <input
+                  type="number"
+                  value={globalSettings.defaultSickLeaves}
+                  onChange={(e) =>
+                    setGlobalSettings({ ...globalSettings, defaultSickLeaves: parseInt(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Default Casual Leave
+                </label>
+                <input
+                  type="number"
+                  value={globalSettings.defaultCasualLeaves}
+                  onChange={(e) =>
+                    setGlobalSettings({ ...globalSettings, defaultCasualLeaves: parseInt(e.target.value) || 0 })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  min="0"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+                <input
+                  type="checkbox"
+                  id="applyToAll"
+                  checked={applyToAll}
+                  onChange={(e) => setApplyToAll(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="applyToAll" className="text-sm text-yellow-800">
+                  Apply to all existing users
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveGlobalSettings}
+                disabled={savingSettings}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingSettings ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  "Save Settings"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Detail Modal */}
+      {showUserModal && selectedUserDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">User Details</h2>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setSelectedUserDetail(null);
+                  setEditingUser(false);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {loadingUser ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              </div>
+            ) : (
+              <>
+                {/* User Info */}
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg mb-6">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span className="text-2xl font-bold text-indigo-600">
+                      {selectedUserDetail.user.name?.[0]?.toUpperCase() || selectedUserDetail.user.email[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{selectedUserDetail.user.name || "No name"}</h3>
+                    <p className="text-gray-600">{selectedUserDetail.user.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        selectedUserDetail.user.role === "admin"
+                          ? "bg-purple-100 text-purple-700"
+                          : selectedUserDetail.user.role === "hr"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}>
+                        {selectedUserDetail.user.role}
+                      </span>
+                      {selectedUserDetail.user.department && (
+                        <span className="text-sm text-gray-500">{selectedUserDetail.user.department}</span>
+                      )}
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setEditingUser(!editingUser);
+                        if (!editingUser) {
+                          setUserEditData({
+                            role: selectedUserDetail.user.role,
+                            department: selectedUserDetail.user.department || "",
+                            totalLeaves: selectedUserDetail.leaveBalance?.totalLeaves || 15,
+                            sickLeaves: selectedUserDetail.leaveBalance?.sickLeaves || 10,
+                            casualLeaves: selectedUserDetail.leaveBalance?.casualLeaves || 5,
+                          });
+                        }
+                      }}
+                      className="px-3 py-2 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
+                    >
+                      {editingUser ? "Cancel Edit" : "Edit User"}
+                    </button>
+                  )}
+                </div>
+
+                {/* Edit Form */}
+                {editingUser && (
+                  <div className="p-4 bg-indigo-50 rounded-lg mb-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                        <select
+                          value={userEditData.role}
+                          onChange={(e) => setUserEditData({ ...userEditData, role: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="employee">Employee</option>
+                          <option value="hr">HR</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <input
+                          type="text"
+                          value={userEditData.department}
+                          onChange={(e) => setUserEditData({ ...userEditData, department: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Annual Leave</label>
+                        <input
+                          type="number"
+                          value={userEditData.totalLeaves}
+                          onChange={(e) => setUserEditData({ ...userEditData, totalLeaves: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Sick Leave</label>
+                        <input
+                          type="number"
+                          value={userEditData.sickLeaves}
+                          onChange={(e) => setUserEditData({ ...userEditData, sickLeaves: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Casual Leave</label>
+                        <input
+                          type="number"
+                          value={userEditData.casualLeaves}
+                          onChange={(e) => setUserEditData({ ...userEditData, casualLeaves: parseInt(e.target.value) || 0 })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={saveUserChanges}
+                      disabled={savingUser}
+                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {savingUser ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Leave Balance */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Leave Balance</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="p-3 bg-blue-50 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {selectedUserDetail.leaveBalance?.totalLeaves || 0}
+                      </p>
+                      <p className="text-xs text-gray-600">Annual</p>
+                    </div>
+                    <div className="p-3 bg-red-50 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-red-600">
+                        {selectedUserDetail.leaveBalance?.sickLeaves || 0}
+                      </p>
+                      <p className="text-xs text-gray-600">Sick</p>
+                    </div>
+                    <div className="p-3 bg-green-50 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-600">
+                        {selectedUserDetail.leaveBalance?.casualLeaves || 0}
+                      </p>
+                      <p className="text-xs text-gray-600">Casual</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Leaves */}
+                {selectedUserDetail.leaves && selectedUserDetail.leaves.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Recent Leaves</h4>
+                    <div className="space-y-2">
+                      {selectedUserDetail.leaves.map((leave: any) => (
+                        <div key={leave.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              leave.leaveType === "ANNUAL" ? "bg-blue-100 text-blue-700" :
+                              leave.leaveType === "SICK" ? "bg-red-100 text-red-700" :
+                              "bg-green-100 text-green-700"
+                            }`}>
+                              {leave.leaveType}
+                            </span>
+                            <span className="ml-2 text-sm text-gray-600">
+                              {format(new Date(leave.startDate), "MMM d")} - {format(new Date(leave.endDate), "MMM d, yyyy")}
+                            </span>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            leave.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                            leave.status === "REJECTED" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {leave.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent Absents */}
+                {selectedUserDetail.absents && selectedUserDetail.absents.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Recent Absents</h4>
+                    <div className="space-y-2">
+                      {selectedUserDetail.absents.map((absent: any) => (
+                        <div key={absent.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">
+                            {format(new Date(absent.date), "MMM d, yyyy")}
+                          </span>
+                          <span className="text-sm text-gray-500">{absent.reason || "No reason"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </ProtectedLayout>
   );
 }
