@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS "Account" (
     CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
+CREATE INDEX IF NOT EXISTS "Account_userId_idx" ON "Account"("userId");
 
 -- Session table (NextAuth)
 CREATE TABLE IF NOT EXISTS "Session" (
@@ -77,6 +78,7 @@ CREATE TABLE IF NOT EXISTS "Session" (
     CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "Session_sessionToken_key" ON "Session"("sessionToken");
+CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId");
 
 -- VerificationToken table (NextAuth)
 CREATE TABLE IF NOT EXISTS "VerificationToken" (
@@ -103,6 +105,7 @@ CREATE TABLE IF NOT EXISTS "LeaveBalance" (
     CONSTRAINT "LeaveBalance_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "LeaveBalance_userId_key" ON "LeaveBalance"("userId");
+CREATE INDEX IF NOT EXISTS "LeaveBalance_userId_year_idx" ON "LeaveBalance"("userId", "year");
 
 -- Leave table
 CREATE TABLE IF NOT EXISTS "Leave" (
@@ -118,6 +121,11 @@ CREATE TABLE IF NOT EXISTS "Leave" (
     CONSTRAINT "Leave_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Leave_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "Leave_userId_idx" ON "Leave"("userId");
+CREATE INDEX IF NOT EXISTS "Leave_createdAt_idx" ON "Leave"("createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "Leave_status_idx" ON "Leave"("status");
+CREATE INDEX IF NOT EXISTS "Leave_userId_createdAt_idx" ON "Leave"("userId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "Leave_startDate_idx" ON "Leave"("startDate");
 
 -- Absent table
 CREATE TABLE IF NOT EXISTS "Absent" (
@@ -131,6 +139,9 @@ CREATE TABLE IF NOT EXISTS "Absent" (
     CONSTRAINT "Absent_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Absent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "Absent_userId_idx" ON "Absent"("userId");
+CREATE INDEX IF NOT EXISTS "Absent_date_idx" ON "Absent"("date");
+CREATE INDEX IF NOT EXISTS "Absent_userId_date_idx" ON "Absent"("userId", "date" DESC);
 
 -- Project table
 CREATE TABLE IF NOT EXISTS "Project" (
@@ -146,6 +157,10 @@ CREATE TABLE IF NOT EXISTS "Project" (
     CONSTRAINT "Project_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Project_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "Project_userId_idx" ON "Project"("userId");
+CREATE INDEX IF NOT EXISTS "Project_status_idx" ON "Project"("status");
+CREATE INDEX IF NOT EXISTS "Project_userId_status_idx" ON "Project"("userId", "status");
+CREATE INDEX IF NOT EXISTS "Project_createdAt_idx" ON "Project"("createdAt" DESC);
 
 -- Section table
 CREATE TABLE IF NOT EXISTS "Section" (
@@ -159,6 +174,8 @@ CREATE TABLE IF NOT EXISTS "Section" (
     CONSTRAINT "Section_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Section_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "Section_projectId_idx" ON "Section"("projectId");
+CREATE INDEX IF NOT EXISTS "Section_projectId_order_idx" ON "Section"("projectId", "order");
 
 -- Task table
 CREATE TABLE IF NOT EXISTS "Task" (
@@ -178,6 +195,12 @@ CREATE TABLE IF NOT EXISTS "Task" (
     CONSTRAINT "Task_assignedTo_fkey" FOREIGN KEY ("assignedTo") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "Task_sectionId_idx" ON "Task"("sectionId");
+CREATE INDEX IF NOT EXISTS "Task_status_idx" ON "Task"("status");
+CREATE INDEX IF NOT EXISTS "Task_assignedTo_idx" ON "Task"("assignedTo");
+CREATE INDEX IF NOT EXISTS "Task_createdBy_idx" ON "Task"("createdBy");
+CREATE INDEX IF NOT EXISTS "Task_dueDate_idx" ON "Task"("dueDate");
+CREATE INDEX IF NOT EXISTS "Task_sectionId_status_idx" ON "Task"("sectionId", "status");
 
 -- Attachment table
 CREATE TABLE IF NOT EXISTS "Attachment" (

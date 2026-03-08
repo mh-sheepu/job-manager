@@ -14,12 +14,30 @@ export async function GET() {
 
     const projects = await prisma.project.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        updatedAt: true,
         sections: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            order: true,
             tasks: {
-              orderBy: { createdAt: "desc" },
-              include: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                status: true,
+                priority: true,
+                dueDate: true,
+                createdAt: true,
                 attachments: {
                   select: {
                     id: true,
@@ -32,6 +50,7 @@ export async function GET() {
                   },
                 },
               },
+              orderBy: { createdAt: "desc" },
             },
           },
           orderBy: { order: "asc" },

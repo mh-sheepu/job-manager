@@ -17,12 +17,15 @@ export async function GET() {
     const startOfYear = new Date(currentYear, 0, 1);
     const endOfYear = new Date(currentYear, 11, 31);
 
-    // Run all queries in parallel for better performance
+    // Run all queries in parallel - use COUNT queries instead of fetching all data
     const [
       leaveBalanceResult,
       absentCountMonth,
       totalAbsentsYear,
-      projects,
+      activeProjectCount,
+      completedProjectCount,
+      totalProjectCount,
+      taskCounts,
       recentLeaves,
       recentAbsents
     ] = await Promise.all([
@@ -44,26 +47,53 @@ export async function GET() {
           date: { gte: startOfYear, lte: endOfYear },
         },
       }),
-      // Get projects with sections and tasks
-      prisma.project.findMany({
-        where: { userId },
-        include: {
-          sections: {
-            include: { tasks: true },
-          },
-        },
+      // Count active projects (fast count query)
+      prisma.project.count({
+        where: { userId, status: "ACTIVE" },
       }),
-      // Recent leaves
+      // Count completed projects
+      prisma.project.count({
+        where: { userId, status: "COMPLETED" },
+      }),
+      // Count total projects
+      prisma.project.count({
+        where: { userId },
+      }),
+      // Get task counts using raw SQL for efficiency
+      prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT t.status, COUNT(*)::bigint as count
+        FROM "Task" t
+        JOIN "Section" s ON t."sectionId" = s.id
+        JOIN "Project" p ON s."projectId" = p.id
+        WHERE p."userId" = ${userId}
+        GROUP BY t.status
+      `,
+      // Recent leaves (limited)
       prisma.leave.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
         take: 5,
+        select: {
+          id: true,
+          startDate: true,
+          endDate: true,
+          type: true,
+          status: true,
+          reason: true,
+          createdAt: true,
+        },
       }),
-      // Recent absents
+      // Recent absents (limited)
       prisma.absent.findMany({
         where: { userId },
         orderBy: { date: "desc" },
         take: 5,
+        select: {
+          id: true,
+          date: true,
+          reason: true,
+          isExcused: true,
+        },
       })
     ]);
 
@@ -81,22 +111,16 @@ export async function GET() {
       });
     }
 
-    const activeProjects = projects.filter((p: { status: string }) => p.status === "ACTIVE").length;
-    const completedProjects = projects.filter((p: { status: string }) => p.status === "COMPLETED").length;
-
-    // Task stats
+    // Process task counts from raw query
     let totalTasks = 0;
     let completedTasks = 0;
     let inProgressTasks = 0;
 
-    projects.forEach((project: { sections: { tasks: { status: string }[] }[] }) => {
-      project.sections.forEach((section: { tasks: { status: string }[] }) => {
-        section.tasks.forEach((task: { status: string }) => {
-          totalTasks++;
-          if (task.status === "DONE") completedTasks++;
-          if (task.status === "IN_PROGRESS") inProgressTasks++;
-        });
-      });
+    taskCounts.forEach((row) => {
+      const count = Number(row.count);
+      totalTasks += count;
+      if (row.status === "DONE") completedTasks = count;
+      if (row.status === "IN_PROGRESS") inProgressTasks = count;
     });
 
     return NextResponse.json({
@@ -106,9 +130,9 @@ export async function GET() {
         thisYear: totalAbsentsYear,
       },
       projectStats: {
-        active: activeProjects,
-        completed: completedProjects,
-        total: projects.length,
+        active: activeProjectCount,
+        completed: completedProjectCount,
+        total: totalProjectCount,
       },
       taskStats: {
         total: totalTasks,
