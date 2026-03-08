@@ -16,6 +16,7 @@ import {
   BarChart3,
   Bell,
   Settings,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -30,10 +31,18 @@ const navItems = [
   { href: "/profile", label: "Profile & Settings", icon: Settings },
 ];
 
+const adminNavItem = { href: "/admin", label: "Admin Panel", icon: Shield };
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const userRole = (session?.user as any)?.role;
+  const isAdminOrHR = userRole === "admin" || userRole === "hr";
+
+  // Build nav items with admin panel if user has permission
+  const allNavItems = isAdminOrHR ? [adminNavItem, ...navItems] : navItems;
 
   return (
     <>
@@ -59,9 +68,10 @@ export default function Sidebar() {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {navItems.map((item) => {
+            {allNavItems.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
+              const isAdminItem = item.href === "/admin";
               return (
                 <Link
                   key={item.href}
@@ -69,12 +79,21 @@ export default function Sidebar() {
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? "bg-indigo-600 text-white"
+                      ? isAdminItem
+                        ? "bg-purple-600 text-white"
+                        : "bg-indigo-600 text-white"
+                      : isAdminItem
+                      ? "text-purple-300 hover:bg-purple-900/50 hover:text-white"
                       : "text-gray-300 hover:bg-gray-800 hover:text-white"
                   }`}
                 >
                   <Icon size={20} />
                   <span>{item.label}</span>
+                  {isAdminItem && (
+                    <span className="ml-auto px-2 py-0.5 text-xs bg-purple-500/30 text-purple-200 rounded">
+                      {userRole?.toUpperCase()}
+                    </span>
+                  )}
                 </Link>
               );
             })}
