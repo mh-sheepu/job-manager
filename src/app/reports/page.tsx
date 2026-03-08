@@ -12,6 +12,8 @@ import {
   Download,
 } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface ReportData {
   leaveStats: {
@@ -65,47 +67,171 @@ export default function ReportsPage() {
   const exportReport = () => {
     if (!data) return;
 
-    const reportText = `
-Job Manager Report - ${format(new Date(), "MMMM yyyy")}
-================================================
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 20;
 
-LEAVE STATISTICS
-----------------
-Total Requests: ${data.leaveStats.total}
-Approved: ${data.leaveStats.approved}
-Pending: ${data.leaveStats.pending}
-Rejected: ${data.leaveStats.rejected}
+    // Title
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("Job Manager Report", pageWidth / 2, yPos, { align: "center" });
+    yPos += 8;
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(format(new Date(), "MMMM yyyy"), pageWidth / 2, yPos, { align: "center" });
+    yPos += 15;
 
-Leave by Type:
-${data.leaveStats.byType.map((item) => `  - ${item.type}: ${item.count}`).join("\n")}
+    // Leave Statistics Section
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(79, 70, 229); // Indigo
+    doc.text("Leave Statistics", 14, yPos);
+    yPos += 8;
 
-ABSENT STATISTICS
------------------
-Total Absents: ${data.absentStats.total}
-Excused: ${data.absentStats.excused}
-Unexcused: ${data.absentStats.unexcused}
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: yPos,
+      head: [["Status", "Count"]],
+      body: [
+        ["Total Requests", data.leaveStats.total.toString()],
+        ["Approved", data.leaveStats.approved.toString()],
+        ["Pending", data.leaveStats.pending.toString()],
+        ["Rejected", data.leaveStats.rejected.toString()],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [79, 70, 229] },
+      margin: { left: 14, right: 14 },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
 
-PROJECT STATISTICS
-------------------
-Total Projects: ${data.projectStats.total}
-Active: ${data.projectStats.active}
-Completed: ${data.projectStats.completed}
+    // Leave by Type
+    if (data.leaveStats.byType.length > 0) {
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Leave Type", "Count"]],
+        body: data.leaveStats.byType.map((item) => [item.type, item.count.toString()]),
+        theme: "striped",
+        headStyles: { fillColor: [79, 70, 229] },
+        margin: { left: 14, right: 14 },
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+    }
 
-TASK STATISTICS
----------------
-Total Tasks: ${data.taskStats.total}
-Completed: ${data.taskStats.completed}
-In Progress: ${data.taskStats.inProgress}
-To Do: ${data.taskStats.todo}
-    `.trim();
+    // Absent Statistics Section
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(239, 68, 68); // Red
+    doc.text("Absent Statistics", 14, yPos);
+    yPos += 8;
 
-    const blob = new Blob([reportText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `report-${format(new Date(), "yyyy-MM")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: yPos,
+      head: [["Category", "Count"]],
+      body: [
+        ["Total Absents", data.absentStats.total.toString()],
+        ["Excused", data.absentStats.excused.toString()],
+        ["Unexcused", data.absentStats.unexcused.toString()],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [239, 68, 68] },
+      margin: { left: 14, right: 14 },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // Absents by Month
+    if (data.absentStats.byMonth.length > 0) {
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Month", "Absents"]],
+        body: data.absentStats.byMonth.map((item) => [item.month, item.count.toString()]),
+        theme: "striped",
+        headStyles: { fillColor: [239, 68, 68] },
+        margin: { left: 14, right: 14 },
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // Check if we need a new page
+    if (yPos > 230) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    // Project Statistics Section
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(16, 185, 129); // Green
+    doc.text("Project Statistics", 14, yPos);
+    yPos += 8;
+
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: yPos,
+      head: [["Status", "Count"]],
+      body: [
+        ["Total Projects", data.projectStats.total.toString()],
+        ["Active", data.projectStats.active.toString()],
+        ["Completed", data.projectStats.completed.toString()],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [16, 185, 129] },
+      margin: { left: 14, right: 14 },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Task Statistics Section
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(245, 158, 11); // Amber
+    doc.text("Task Statistics", 14, yPos);
+    yPos += 8;
+
+    doc.setTextColor(0, 0, 0);
+    autoTable(doc, {
+      startY: yPos,
+      head: [["Status", "Count"]],
+      body: [
+        ["Total Tasks", data.taskStats.total.toString()],
+        ["Completed", data.taskStats.completed.toString()],
+        ["In Progress", data.taskStats.inProgress.toString()],
+        ["To Do", data.taskStats.todo.toString()],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [245, 158, 11] },
+      margin: { left: 14, right: 14 },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // Tasks by Priority
+    if (data.taskStats.byPriority.length > 0) {
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Priority", "Count"]],
+        body: data.taskStats.byPriority.map((item) => [item.priority, item.count.toString()]),
+        theme: "striped",
+        headStyles: { fillColor: [245, 158, 11] },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setTextColor(128, 128, 128);
+      doc.text(
+        `Generated on ${format(new Date(), "PPpp")} - Page ${i} of ${pageCount}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: "center" }
+      );
+    }
+
+    // Save PDF
+    doc.save(`report-${format(new Date(), "yyyy-MM")}.pdf`);
   };
 
   const ProgressBar = ({
